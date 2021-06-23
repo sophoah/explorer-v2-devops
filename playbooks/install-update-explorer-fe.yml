@@ -1,0 +1,72 @@
+---
+- hosts: '{{ inventory }}'
+
+  vars:
+    network: 'mainnet'
+    branch: 'master'
+
+  tasks:
+    - name: delete explorer-v2 folder
+      ignore_errors: yes
+      file:
+        path: '/home/{{ ansible_user }}/harmony-explorer-v2-fe'
+        state: absent
+
+    - name: clone the repo of explorer FE
+      git:
+        repo: 'https://github.com/sophoah/harmony-explorer-v2-frontend.git'
+        dest: '/home/{{ ansible_user }}/harmony-explorer-v2-fe'
+        version: '{{ branch }}'
+
+    - name: copy app configuration files added to the container
+      copy:
+        src: '{{ item.src }}'
+        dest: '/home/{{ ansible_user }}/harmony-explorer-v2-fe/{{ item.dest }}'
+      with_items:
+        - { src: '{{ network }}/fe.env', dest: '.env' }
+
+    - name: build or rebuild container image
+      docker_image:
+        name: harmonyone/explorer-v2-fe:latest
+        build:
+          path: '/home/{{ ansible_user }}/harmony-explorer-v2-fe'
+          pull: yes
+          nocache: yes
+        source: build
+        state: present
+        force_source: yes
+
+    - name: stop current container for update
+      become: yes
+      ignore_errors: yes
+      docker_container:
+        name: 'explorer-v2-fe'
+        state: stopped
+
+    - name: 'create explorer v2 frontend container'
+      become: yes
+      docker_container:
+        name: 'explorer-v2-fe'
+        image: 'harmonyone/explorer-v2-fe:latest'
+        ports:
+          - '3000:3000'
+        restart_policy: always
+
+    - name: wait container launched succeed
+      wait_for:
+        host: '0.0.0.0'
+        port: '{{ service_port_test }}'
+        delay: 10
+        state: started
+
+    - name: prune legacy images/container for update
+      become: yes
+      ignore_errors: yes
+      docker_prune:
+        containers: yes
+        images: yes
+        images_filters:
+          dangling: false
+        builder_cache: yes
+        #containers_filters:
+        #  until: 24h

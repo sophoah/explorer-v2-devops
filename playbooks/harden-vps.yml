@@ -1,0 +1,32 @@
+---
+- hosts: '{{ inventory }}'
+
+  vars:
+    packages:
+      - net-tools
+      - jq
+      - python3-pip
+
+  tasks:
+  - name: tasks need sudo to install packages and doing upgrade
+    block:
+    - name: apt update && upgrade
+      apt:
+        upgrade: yes
+        update_cache: yes
+        dpkg_options: 'force-confold'
+        force_apt_get: yes
+
+    - name: apt upgrade dist
+      apt:
+        upgrade: dist
+        dpkg_options: 'force-confold'
+        force_apt_get: yes
+
+    - name: install required packages on node using apt
+      apt:
+        name: '{{ packages }}'
+        state: present
+      become: true
+    become: true
+    become_user: root

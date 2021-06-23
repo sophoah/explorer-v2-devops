@@ -1,0 +1,114 @@
+---
+- hosts: '{{ inventory }}'
+
+  vars:
+    network: 'mainnet'
+    branch: 'develop'
+    #type: can have 3 values for now:
+    # api for the api instance
+    # indexer0 for s0 indexer
+    # indexer123 for s1/2/3 indexer
+    # their .env should matched
+
+  tasks:
+    - name: delete explorer-v2 folder
+      ignore_errors: yes
+      file:
+        path: '/home/{{ ansible_user }}/harmony-explorer-v2'
+        state: absent
+
+    - name: clone the repo of explorer FE
+      git:
+        repo: 'https://github.com/hypnagonia/harmony-explorer-v2.git'
+        dest: '/home/{{ ansible_user }}/harmony-explorer-v2'
+        version: '{{ branch }}'
+
+    - name: create directories for docker volumes
+      file:
+        path: '{{ item }}'
+        state: directory
+        mode: '0755'
+      with_items:
+        - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/keys'
+        - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/aws'
+
+    - name: copy app configuration files for host/docker shared data
+      copy:
+        src: '{{ item.src }}'
+        dest: '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/{{ item.dest }}'
+      with_items:
+        - { src: '{{ network }}/{{ type }}.withpass.env', dest: '.env.backend' }
+        - { src: '{{ network }}/aws-config', dest: 'aws/config' }
+        - { src: '{{ network }}/aws-credential', dest: 'aws/credential' }
+        - { src: '{{ network }}/{{ type }}-pg-credential.encrypted', dest: 'keys/pg-credential.encrypted' }
+
+      # to be removed once KMS is implemented
+    - name: copy app configuration files added to the container
+      copy:
+        src: '{{ item.src }}'
+        dest: '/home/{{ ansible_user }}/harmony-explorer-v2/{{ item.dest }}'
+      with_items:
+        - { src: '{{ network }}/{{ type }}.withpass.env', dest: '.env' }
+
+    - name: build or rebuild container image
+      docker_image:
+        name: harmonyone/explorer-v2-{{ type }}:latest
+        build:
+          path: '/home/{{ ansible_user }}/harmony-explorer-v2'
+          pull: yes
+          nocache: yes
+        source: build
+        state: present
+        force_source: yes
+
+    - name: stop current container for update
+      ignore_errors: yes
+      docker_container:
+        name: 'explorer-v2-be-{{ type }}'
+        state: stopped
+
+    - name: 'start explorer v2 backend {{ type }} container'
+      docker_container:
+        name: 'explorer-v2-be-{{ type }}'
+        image: 'harmonyone/explorer-v2-{{ type }}:latest'
+        ports:
+          - '3001:3001'
+          - '3002:3002'
+          - '8000:8000'
+        volumes:
+          - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/aws:/root/.aws'
+          - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/keys:/app/keys'
+        env_file: /home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/.env.backend
+        restart_policy: always
+      no_log: True
+
+    - name: wait container launched succeed
+      wait_for:
+        host: '0.0.0.0'
+        port: '{{ service_port_test }}'
+        delay: 10
+        state: started
+
+    - name: prune legacy images/container for update
+      become: yes
+      ignore_errors: yes
+      docker_prune:
+        containers: yes
+        images: yes
+        images_filters:
+          dangling: false
+        builder_cache: yes
+        #containers_filters:
+        #  until: 24h
+
+    - name: clear secret files
+      ignore_errors: yes
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/env.backend'
+        - '/home/{{ ansible_user }}/harmony-explorer-v2/.env'
+        - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/aws/credential'
+        - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/aws/config'
+        - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/keys/pg-credential.encrypted'

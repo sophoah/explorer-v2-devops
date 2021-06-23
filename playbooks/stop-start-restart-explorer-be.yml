@@ -1,0 +1,51 @@
+---
+- hosts: '{{ inventory }}'
+
+  vars:
+    network: 'mainnet'
+    todo_var: "{{ todo | default('restart') }}" # stop, start, restart
+
+  tasks:
+    - name: copy app configuration files for host/docker shared data
+      copy:
+        src: '{{ item.src }}'
+        dest: '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/{{ item.dest }}'
+      with_items:
+        - { src: '{{ network }}/{{ type }}.withpass.env', dest: '.env.backend' }
+        - { src: '{{ network }}/aws-config', dest: 'aws/config' }
+        - { src: '{{ network }}/aws-credential', dest: 'aws/credential' }
+        - { src: '{{ network }}/{{ type }}-pg-credential.encrypted', dest: 'keys/pg-credential.encrypted' }
+      when: todo_var == "start" or todo_var == "restart"
+
+    - name: stop current container for an eventual restart
+      ignore_errors: yes
+      docker_container:
+        name: 'explorer-v2-be-{{ type }}'
+        state: stopped
+
+    - name: start current container for restart
+      docker_container:
+        name: 'explorer-v2-be-{{ type }}'
+        state: started
+      when: todo_var == "start" or todo_var == "restart"
+      no_log: True
+
+    - name: wait container launched succeed
+      wait_for:
+        host: '0.0.0.0'
+        port: '{{ service_port_test }}'
+        delay: 10
+        state: started
+      when: todo_var == "start" or todo_var == "restart"
+
+    - name: clear secret files
+      ignore_errors: yes
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/env.backend'
+        - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/aws/credential'
+        - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/aws/config'
+        - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/keys/pg-credential.encrypted'
+      when: todo_var == "start" or todo_var == "restart"

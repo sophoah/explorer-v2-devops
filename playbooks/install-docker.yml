@@ -1,0 +1,25 @@
+---
+- hosts: '{{ inventory }}'
+  
+  roles:
+  - role: geerlingguy.docker
+    become: yes
+
+  tasks:
+  - name: install docker python packages for ansible manage docker
+    become: yes
+    pip:
+      name: docker
+
+  - name: adding existing user '{{ ansible_user }}' to group docker
+    become: yes
+    user:
+      name: '{{ ansible_user }}'
+      groups: docker
+      append: yes
+
+  - name: reload service docker, in all cases
+    become: yes
+    systemd:
+      name: docker
+      state: restarted
