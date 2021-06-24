@@ -14,7 +14,7 @@
 
     - name: clone the repo of explorer FE
       git:
-        repo: 'https://github.com/sophoah/harmony-explorer-v2-frontend.git'
+        repo: 'https://github.com/hypnagonia/harmony-explorer-v2-frontend.git'
         dest: '/home/{{ ansible_user }}/harmony-explorer-v2-fe'
         version: '{{ branch }}'
 
