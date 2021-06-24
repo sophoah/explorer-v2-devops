@@ -23,6 +23,27 @@
         dest: '/home/{{ ansible_user }}/harmony-explorer-v2'
         version: '{{ branch }}'
 
+    - name: Get git version of playbooks
+      command: 
+        cmd: "git rev-parse HEAD"
+        chdir : harmony-explorer-v2
+      register: git_version
+
+    - name: Get git version of playbooks
+      command: 
+        cmd: "git rev-list HEAD --count"
+        chdir : harmony-explorer-v2
+      register: git_commit_number
+
+    - name: echo commit hash and number
+      debug:
+        msg : "{{ git_version.stdout | to_json | replace('\"','') + '-' + git_commit_number.stdout | to_json | replace('\"','') }}"
+
+    - name: write commit hash and number in VERSION file
+      copy:
+        dest: "/home/{{ ansible_user }}/harmony-explorer-v2/VERSION"
+        content: "{{ git_version.stdout | to_json | replace('\"','') + '-' + git_commit_number.stdout | to_json | replace('\"','') }}"
+
     - name: create directories for docker volumes
       file:
         path: '{{ item }}'
