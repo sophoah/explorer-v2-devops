@@ -103,11 +103,15 @@
         restart_policy: always
       no_log: True
 
+    - name: pausing 30s
+      pause:
+        seconds: 30
+
     - name: wait container launched succeed
       wait_for:
         host: '0.0.0.0'
         port: '{{ service_port_test }}'
-        delay: 10
+        delay: 30
         state: started
 
     - name: prune legacy images/container for update
