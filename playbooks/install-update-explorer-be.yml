@@ -9,6 +9,10 @@
     # indexer0 for s0 indexer
     # indexer123 for s1/2/3 indexer
     # their .env should matched
+    svc_port:
+    - '3001:3001'
+    - '3002:3002'
+    - '8000:8000'
 
   tasks:
     - name: delete explorer-v2 folder
@@ -58,18 +62,16 @@
         src: '{{ item.src }}'
         dest: '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/{{ item.dest }}'
       with_items:
-        - { src: '{{ network }}/{{ type }}.withpass.env', dest: '.env.backend' }
         - { src: '{{ network }}/aws-config', dest: 'aws/config' }
         - { src: '{{ network }}/aws-credential', dest: 'aws/credential' }
         - { src: '{{ network }}/{{ type }}-pg-credential.encrypted', dest: 'keys/pg-credential.encrypted' }
 
-      # to be removed once KMS is implemented
-    - name: copy app configuration files added to the container
+    - name: copy app configuration files to be added in the container
       copy:
         src: '{{ item.src }}'
         dest: '/home/{{ ansible_user }}/harmony-explorer-v2/{{ item.dest }}'
       with_items:
-        - { src: '{{ network }}/{{ type }}.withpass.env', dest: '.env' }
+        - { src: '{{ network }}/{{ type }}.env', dest: '.env' }
 
     - name: build or rebuild container image
       docker_image:
@@ -92,26 +94,18 @@
       docker_container:
         name: 'explorer-v2-be-{{ type }}'
         image: 'harmonyone/explorer-v2-{{ type }}:latest'
-        ports:
-          - '3001:3001'
-          - '3002:3002'
-          - '8000:8000'
+        ports: '{{ svc_port }}'
         volumes:
           - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/aws:/root/.aws'
           - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/keys:/app/keys'
-        env_file: /home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/.env.backend
         restart_policy: always
       no_log: True
-
-    - name: pausing 30s
-      pause:
-        seconds: 30
 
     - name: wait container launched succeed
       wait_for:
         host: '0.0.0.0'
         port: '{{ service_port_test }}'
-        delay: 30
+        delay: 15
         state: started
 
     - name: prune legacy images/container for update
@@ -132,8 +126,6 @@
         path: "{{ item }}"
         state: absent
       with_items:
-        - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/env.backend'
-        - '/home/{{ ansible_user }}/harmony-explorer-v2/.env'
         - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/aws/credential'
         - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/aws/config'
         - '/home/{{ ansible_user }}/explorer-v2-{{ type }}-disk/keys/pg-credential.encrypted'
