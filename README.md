@@ -10,7 +10,7 @@ ansible-galaxy install -r requirements.yml
 ```
 
 ## setup vault pass
-edit `.vaultpass` file. Ask Soph for the pass and uncomment the line in ansible.cfg
+edit `.vaultpass` file. Ask Soph for the pass and uncomment the line in ansible.cfg for local deployment
 
 ## edit hosts file in vault
 ```bash

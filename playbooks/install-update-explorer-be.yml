@@ -3,7 +3,7 @@
 
   vars:
     network: 'mainnet'
-    branch: 'develop'
+    branch: 'master'
     #type: can have 3 values for now:
     # api for the api instance
     # indexer0 for s0 indexer
@@ -23,7 +23,7 @@
 
     - name: clone the repo of explorer FE
       git:
-        repo: 'https://github.com/hypnagonia/harmony-explorer-v2.git'
+        repo: 'https://github.com/harmony-one/explorer-v2-backend.git'
         dest: '/home/{{ ansible_user }}/harmony-explorer-v2'
         version: '{{ branch }}'
 
